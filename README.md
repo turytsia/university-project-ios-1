@@ -4,11 +4,11 @@ Analyzátor záznamů osob s prokázanou nákazou koronavirem způsobujícím on
 
 ## Usage
 ```bash
-corona \[-h\] \[FILTERS] \[COMMAND\] \[LOG \[LOG2 \[...\]\]
+corona [-h] [FILTERS] [COMMAND] [LOG [LOG2 [...]]
 ```
 
 ## Detailed description [CZ]
-COMMAND může být jeden z:<br />
+### COMMAND může být jeden z:
 **infected** — spočítá počet nakažených.<br />
 **merge** — sloučí několik souborů se záznamy do jednoho, zachovávající původní pořadí (hlavička bude ve výstupu jen jednou).<br />
 **gender** — vypíše počet nakažených pro jednotlivá pohlaví.<br />
@@ -19,7 +19,7 @@ COMMAND může být jeden z:<br />
 **countries** — vypíše statistiku nakažených osob pro jednotlivé země nákazy (bez ČR, tj. kódu CZ).<br />
 **districts** — vypíše statistiku nakažených osob pro jednotlivé okresy.<br />
 **regions** — vypíše statistiku nakažených osob pro jednotlivé kraje.<br />
-FILTERS může být kombinace následujících (každý maximálně jednou):<br />
+### FILTERS může být kombinace následujících (každý maximálně jednou):<br />
 **-a** DATETIME — after: jsou uvažovány pouze záznamy PO tomto datu (včetně tohoto data). DATETIME je formátu YYYY-MM-DD.<br />
 **-b** DATETIME — before: jsou uvažovány pouze záznamy PŘED tímto datem (včetně tohoto data).<br />
 **-g** GENDER — jsou uvažovány pouze záznamy nakažených osob daného pohlaví. GENDER může být M (muži) nebo Z (ženy).<br />
