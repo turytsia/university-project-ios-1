@@ -48,5 +48,8 @@ d0886572-e1b3-4573-8cb3-77164d57a7db, 2020-04-21 ,45,Z,CZ064,CZ0647,1,AT,1
 d0e1878c-ab05-47ac-89f8-4c7dadfcd7d0,2020-04-21,54,Z,CZ080,CZ0802,,,1
 ```
 
+## Program structure
+![Diagram](/diagram.png)
+
 ## Project is for Operation System courses
 You can learn more abou this course [here](https://www.fit.vut.cz/study/course/244864/.cs)
