@@ -16,7 +16,6 @@ histogram_length=0
 readonly re_id=^[a-zA-Z0-9-]+$
 readonly re_date=^[0-9]{4}-[01][0-9]-[0-3][0-9]$
 readonly re_file=\.[a-zA-Z]+
-readonly months_day_count=(31 29 31 30 31 30 31 31 30 31 30 31)
 readonly max_month=12
 readonly max_year=9999
 readonly s_gender=100000
@@ -45,25 +44,22 @@ countries -   prints out a number of infected people per country\n
 districts -   prints out a number of infected people per distinct\n
 regions -     prints out a number of infected people per region\n
 "
-readonly head="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+head="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
 #------------------------------------------Input & Output functions------------------------------------------
 # error handler
-create_error(){
+create_error() {
     echo $1 >&2
     exit 1
 }
 # input handler
-input(){
+input() {
     awk -v head="$head" '
-    BEGIN{is_head=0}
-    {gsub(" ","",$0)}
-    $0 !~ head {print}
-    $0 ~ head && is_head==0 {is_head=1}
+    $0 !~ head {print $0}
     '
 }
 
 # output handler (for "key": "value")
-output(){
+output() {
     has_none=$1
     awk -v has_none="$has_none" '
         BEGIN {None=0} 
@@ -75,42 +71,56 @@ output(){
             }
         }}
         END{if(None!=0){print "None:",None}}'
-    
+
 }
 # date validation for flags (-a -b)
-is_date_valid(){
+is_date_valid() {
     date=$1
-    if [[ "$date" =~ 20[0-9]{2}-[01][0-9]-[0-3][0-9] ]];then
+    if [[ "$date" =~ 20[0-9]{2}-[01][0-9]-[0-3][0-9] ]]; then
         return $(echo $date | awk -F- -v max_month="$max_month" -v max_year="$max_year" -v months_str="${months_day_count[*]}" '
-        BEGIN { split(months_str,months," ") }
-        {print ($1>max_year||$1<0||$2>max_month||$3>months[int($2)]||$2<0||$3<0?0:1)}')
+        BEGIN { 
+            months[0]=31
+            months[1]=29
+            months[2]=31
+            months[3]=30
+            months[4]=31
+            months[5]=30
+            months[6]=31
+            months[7]=31
+            months[8]=30
+            months[9]=31
+            months[10]=30
+            months[11]=31
+         }
+        {print ($1>max_year||$1<0||$2>max_month||$3>months[int($2)-1]||$2<0||$3<0?0:1)}')
     else
         create_error "Invalid argument. Should be YYYY-MM-DD"
     fi
 }
 #---------------------------------------------Input--------------------------------------------------
 # flags handler
-while getopts a:b:g:s:h flag
-do
+while getopts a:b:g:s:h flag; do
     case $flag in
-    h) 
+    h)
         echo -e $info
-        exit 0;;
-    a)  if [[ -n $OPTARG ]];then
+        exit 0
+        ;;
+    a)
+        if [[ -n $OPTARG ]]; then
             FILTERS+=("$flag:$OPTARG")
         fi
         ;;
-    b) if [[ -n $OPTARG ]];then
-            FILTERS+=("$flag:$OPTARG")
-        fi;;
-    g) if [[ -n $OPTARG ]];then
-            FILTERS+=("$flag:$OPTARG")
-        fi;;
-    s) 
+    b) if [[ -n $OPTARG ]]; then
+        FILTERS+=("$flag:$OPTARG")
+    fi ;;
+    g) if [[ -n $OPTARG ]]; then
+        FILTERS+=("$flag:$OPTARG")
+    fi ;;
+    s)
         is_histogram=1
-        if [[ "$OPTARG" =~ ^[0-9]+$ ]];then
+        if [[ "$OPTARG" =~ ^[0-9]+$ ]]; then
             histogram_length=$OPTARG
-        else
+        elif [[ "$OPTARG" =~ ^[a-z]+$ ]];then
             COMMAND=$OPTARG
         fi
         ;;
@@ -118,129 +128,148 @@ do
 done
 
 # flag argument's validation
-for filter in ${FILTERS[@]}
-do
+for filter in ${FILTERS[@]}; do
     argument=$(echo $filter | awk -F: '{print $2}')
-    if [[ "$filter" =~ ^a ]];then
-    is_date_valid $argument
-    if [[ $? == "0" ]];then
-        create_error "Invalid argument. Should be YYYY-MM-DD"
+    if [[ "$filter" =~ ^a ]]; then
+        is_date_valid $argument
+        if [[ $? == "0" ]]; then
+            create_error "Invalid argument. Should be YYYY-MM-DD"
+        fi
+    elif [[ "$filter" =~ ^b ]]; then
+        is_date_valid $argument
+        if [[ $? == "0" ]]; then
+            create_error "Invalid argument. Should be YYYY-MM-DD"
+        fi
+    elif [[ "$filter" =~ ^g ]]; then
+        if [[ ! $argument =~ ^[MZ]$ ]]; then
+            create_error "Invalid argument. Should be M or Z"
+        fi
     fi
-    elif [[ "$filter" =~ ^b ]];then
-    is_date_valid $argument
-    if [[ $? == "0" ]];then
-        create_error "Invalid argument. Should be YYYY-MM-DD"
-    fi
-    elif [[ "$filter" =~ ^g ]];then
-    if [[ ! $argument =~ ^[MZ]$ ]];then
-        create_error "Invalid argument. Should be M or Z"
-    fi
-fi
 done
-
-shift $(($OPTIND-1))
-
-readonly args=($@)
 # reads command
-if [[ -z "$COMMAND" ]];then
-    COMMAND=${args[0]}
-fi
+args=()
+if [[ -z "$COMMAND" ]]; then
 
+    if [[ ! "$is_histogram" -eq 1 || "$histogram_length" -gt 0 ]];then
+        ((OPTIND--))
+    fi
+    shift $OPTIND
+    args=($@)
+    COMMAND=${args[0]}
+    else
+    args=($@)
+
+fi
 # file input
-if [ ! -p /dev/stdin ];then
-    for file in ${args[*]};do
-        if [[ "$file" =~ \.(csv|csv.gz|csv.bz2)$ ]];then
-            files+=($file)         
+
+if [ ! -p /dev/stdin ]; then
+    for file in ${args[*]}; do
+        if [[ "$file" =~ \.(csv|csv.gz|csv.bz2)$ ]]; then
+            files+=($file)
         fi
     done
-    
-    if [[ "$COMMAND" == "merge" && ${#files} -gt 0 ]];then
-        for file in ${files[*]};do
-            if [[ "$file" =~ \.csv$ ]];then
-                lines+=$(cat $file | input )
-            elif [[ "$file" =~ \.csv\.gz$ ]];then
-                lines+=$(zcat $file | input )
-            elif [[ "$file" =~ \.csv\.bz2$ ]];then
-                lines+=$(bzcat $file | input )
+    IFS="\n"
+    if [[ ${#files} -gt 0 ]]; then
+        for file in ${files[*]}; do
+            if [[ "$file" =~ \.csv$ ]]; then
+                lines+=$(cat $file | input)" "
+            elif [[ "$file" =~ \.csv\.gz$ ]]; then
+                lines+=$(zcat $file | input)" "
+            elif [[ "$file" =~ \.csv\.bz2$ ]]; then
+                lines+=$(bzcat $file | input)" "
             fi
         done
-    else 
-        if [[ ${#files} -gt 0 ]];then
-            file=${files[0]}
-        else    
-            echo "Please provide a file (.csv , .csv.gz or .csv.bz2)"
-            read file
-            if [[ ! "$file" =~ \.csv$ ]];then
-                create_error "Invalid name of the file"
+    else
+        echo "Please provide a file (.csv , .csv.gz or .csv.bz2)"
+        read file
+        if [[ ! "$file" =~ \.csv$ ]]; then
+            create_error "Invalid name of the file"
+        else
+            if [[ "$file" =~ \.csv$ ]]; then
+                lines+=$(cat $file | input)
+            elif [[ "$file" =~ \.csv\.gz$ ]]; then
+                lines+=$(zcat $file | input)
+            elif [[ "$file" =~ \.csv\.bz2$ ]]; then
+                lines+=$(bzcat $file | input)
             fi
         fi
-
-        if [[ "$file" =~ \.csv$ ]];then
-            lines=$(cat $file | input )
-        elif [[ "$file" =~ \.csv\.gz$ ]];then
-            lines=$(zcat $file | input )
-        elif [[ "$file" =~ \.csv\.bz2$ ]];then
-            lines=$(bzcat $file | input )
-        fi
     fi
+    IFS=""
 else
-    lines=$(input)
+
+    lines+=$(input)
 fi
 
 # if there is no command
-if [[ "$file" == "$COMMAND" ]];then
-COMMAND=
-fi
+for file in ${files[*]};do
+    if [[ "$file" == "$COMMAND" ]]; then
+        COMMAND=
+    fi
+done
 
 #---------------------------------------------Functions--------------------------------------------------
 # finds max value in "key": "value" line
-find_max(){
+find_max() {
     awk -F: 'BEGIN {max=0}; ($2>max){max=$2} END {print max}'
 }
 # validates lines
 get_line() {
     echo -e "$lines" | awk -F, -v isError="$1" -v head="$head" -v valid_date="$re_date" -v valid_id="$re_id" -v months_str="${months_day_count[*]}" '
     BEGIN { 
-        split(months_str,months," ") 
+        months[0]=31
+        months[1]=29
+        months[2]=31
+        months[3]=30
+        months[4]=31
+        months[5]=30
+        months[6]=31
+        months[7]=31
+        months[8]=30
+        months[9]=31
+        months[10]=30
+        months[11]=31
     }
     {   
+        date=$2
+        age=$3
+        gsub(" ", "", date)
+        gsub(" ", "", age)
+        line=$1","$2","$3","$4","$5","$6","$7","$8","$9
 
-        #date
-        y=substr($2,0,4)
-        m=substr($2,6,2)
-        d=substr($2,9,2)
-
+        y=substr(date,0,4)
+        m=substr(date,6,2)
+        d=substr(date,9,2)
+    
         #borders
         max_month=12
         max_year=9999
         max_day=31
+        min_year=1970
 
-        is_date_invalid=$2 !~ valid_date || d < 0 || m < 0|| m > max_month || y < 0 || y > max_year || d > months[int(m)]
-
-        is_age_invalid=($3<0|| ($3 !~ "^[0-9]+$"))&&length($3)!=0
-
-
+        is_date_invalid=date !~ valid_date || d < 0 || m < 0|| m > max_month || y < min_year || y > max_year || d > months[int(m-1)]
+        is_age_invalid=(age<0||age !~ /^[0-9]+$/)&&length(age)>0
+        
         if(isError=="invalid"){
-            if(length($2)==0)
+            if(length(date)==0||$0 ~ head||length(age)==0)
             {
                 next
             }
             
             if(is_date_invalid){
-                print "Invalid date:",$0
+                print "Invalid date:",line
             }
             if(is_age_invalid){
-                print "Invalid age:",$0
+                print "Invalid age:",line
             }
         }else{
-            if(!is_age_invalid&&!is_date_invalid&&($1 ~ valid_id)&&($0 != head)){
-               print $0
+            if(!is_age_invalid&&!is_date_invalid){
+               print line
             }
         }
     }'
 }
 # saves validated lines
-get_validated_lines(){
+get_validated_lines() {
     #save lines [invalid date]
     err_lines=$(get_line invalid)
     #save lines [valid date & age]
@@ -249,7 +278,7 @@ get_validated_lines(){
 
 #---------------------------------------------FILTERS--------------------------------------------------
 
-if [[ "${#FILTERS[*]}" -gt 0 || ("$COMMAND" != "merge" && "$COMMAND" != "") ]];then
+if [[ "${#FILTERS[*]}" -gt 0 || ("$COMMAND" != "merge" && "$COMMAND" != "") ]]; then
     get_validated_lines
 fi
 
@@ -265,8 +294,8 @@ g_filter() {
     echo -e "$lines" | awk -F, -v valid_date="re_date" -v GENDER="$1" '{if( $4 == GENDER || length($4) == 0 ) {print} }'
 }
 
-s_filter(){
-        awk -F: -v max="$1" -v len="$histogram_length" -v def="$2" '
+s_filter() {
+    awk -F: -v max="$1" -v len="$histogram_length" -v def="$2" '
         BEGIN {s="";size=0;k=0}
         {
             if(len>0){
@@ -282,16 +311,15 @@ s_filter(){
             print $1":", s
             s=""
         }'
-}   
+}
 # applies filter to lines
-for filter in ${FILTERS[@]}
-do
+for filter in ${FILTERS[@]}; do
     argument=$(echo $filter | awk -F: '{print $2}')
-    if [[ "$filter" =~ ^a ]];then
+    if [[ "$filter" =~ ^a ]]; then
         lines=$(a_filter $argument)
-    elif [[ "$filter" =~ ^b ]];then
+    elif [[ "$filter" =~ ^b ]]; then
         lines=$(b_filter $argument)
-    elif [[ "$filter" =~ ^g ]];then
+    elif [[ "$filter" =~ ^g ]]; then
         lines=$(g_filter $argument)
     fi
 done
@@ -303,7 +331,7 @@ infected() {
 }
 
 gender() {
-    gender_count(){
+    gender_count() {
         awk -F, '
         BEGIN {M=0;Z=0;N=0}
         ($4 ~ /M/){M++}
@@ -317,16 +345,16 @@ gender() {
         }'
     }
 
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | gender_count
-        else
-            max=$(echo -e "$lines" | gender_count | find_max)
-            echo -e "$lines" | gender_count | s_filter $max $s_gender
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | gender_count
+    else
+        max=$(echo -e "$lines" | gender_count | find_max)
+        echo -e "$lines" | gender_count | s_filter $max $s_gender
     fi
 }
 
 age() {
-    age_count(){
+    age_count() {
         awk -F, 'BEGIN {
                     ages["0-5"]=0;
                     ages["6-15"]=0;
@@ -341,8 +369,9 @@ age() {
                     ages["96-105"]=0;
                     ages[">105"]=0;
                     ages["None"]=0;
+                    gsub(" ","",$3);
                 }
-                NR>1{
+                {
                     if(length($3)==0){
                         ages["None"]++
                     }else if($3>=0&&$3<=5){
@@ -397,102 +426,97 @@ age() {
                 '
     }
 
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | age_count
-        else
-            max=$(echo -e "$lines" | age_count | find_max)
-            echo -e "$lines" | age_count | s_filter $max $s_age
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" |age_count
+    else
+        max=$(echo -e "$lines" | age_count | find_max)
+        echo -e "$lines" | age_count | s_filter $max $s_age
     fi
 }
-
 
 daily() {
 
-    daily_count(){
-        awk -F, '{print $2}' | sort -M | uniq -c | output -n
+    daily_count() {
+        awk -F, '{gsub(" ","",$2);print $2}' | sort -M | uniq -c | output -n
     }
 
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | daily_count
-        else
-            max=$(echo -e "$lines" | daily_count | find_max)
-            echo -e "$lines" | daily_count | s_filter $max $s_daily
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | daily_count
+    else
+        max=$(echo -e "$lines" | daily_count | find_max)
+        echo -e "$lines" | daily_count | s_filter $max $s_daily
     fi
-    
+
 }
 
 monthly() {
-    monthly_count(){
-        awk -F, '{print substr($2,0,7)}' | sort -M | uniq -c | output -n
+    monthly_count() {
+        awk -F, '{gsub(" ","",$2);print substr($2,0,7)}' | sort -M | uniq -c | output -n
     }
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | monthly_count
-        else
-            max=$(echo -e "$lines" | monthly_count | find_max)
-            echo -e "$lines" | monthly_count | s_filter $max $s_monthly
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | monthly_count
+    else
+        max=$(echo -e "$lines" | monthly_count | find_max)
+        echo -e "$lines" | monthly_count | s_filter $max $s_monthly
     fi
 }
 
 yearly() {
-    yearly_count(){
-        awk -F, '{print substr($2,0,4)}' | sort -M | uniq -c | output -n
+    yearly_count() {
+        awk -F, '{gsub(" ","",$2);print substr($2,0,4)}' | sort -M | uniq -c | output -n
     }
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | yearly_count
-        else
-            max=$(echo -e "$lines" | yearly_count | find_max)
-            echo -e "$lines" | yearly_count | s_filter $max $s_yearly
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | yearly_count
+    else
+        max=$(echo -e "$lines" | yearly_count | find_max)
+        echo -e "$lines" | yearly_count | s_filter $max $s_yearly
     fi
 }
 
 countries() {
-    countries_count(){
-        awk -F, '{print $8}' | sort -d | uniq -c | output
+    countries_count() {
+        awk -F, '{gsub(" ","",$8);print $8}' | sort -d | uniq -c | output
     }
 
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | countries_count
-        else
-            max=$(echo -e "$lines" | countries_count | find_max)
-            echo -e "$lines" | countries_count | s_filter $max $s_countries
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | countries_count
+    else
+        max=$(echo -e "$lines" | countries_count | find_max)
+        echo -e "$lines" | countries_count | s_filter $max $s_countries
     fi
 }
 
 districts() {
-    districts_count(){
-        awk -F, '{print $6}' | sort -n | uniq -c | output -n
+    districts_count() {
+        awk -F, '{gsub(" ","",$6);print $6}' | sort -n | uniq -c | output -n
     }
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | districts_count
-        else
-            max=$(echo -e "$lines" | districts_count | find_max)
-            echo -e "$lines" | districts_count | s_filter $max $s_districts
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | districts_count
+    else
+        max=$(echo -e "$lines" | districts_count | find_max)
+        echo -e "$lines" | districts_count | s_filter $max $s_districts
     fi
 }
 
 regions() {
-    regions_count(){
-        awk -F, '{print $5}' | sort -n | uniq -c | output -n
+    regions_count() {
+        awk -F, '{gsub(" ","",$5);print $5}' | sort -n | uniq -c | output -n
     }
-    if [[ -z "$is_histogram" ]];then
-            echo -e "$lines" | regions_count
-        else
-            max=$(echo -e "$lines" | regions_count | find_max)
-            echo -e "$lines" | regions_count | s_filter $max $s_regions
+    if [[ -z "$is_histogram" ]]; then
+        echo -e "$lines" | regions_count
+    else
+        max=$(echo -e "$lines" | regions_count | find_max)
+        echo -e "$lines" | regions_count | s_filter $max $s_regions
     fi
 }
 
-output_no_validation(){
-    echo $head
-    for line in ${lines};do
-        echo -e $line
-    done
-}
-
-merge(){
-    echo $head
-    for line in ${lines};do
-        echo -e $line
+merge() {
+    if [[ -n "$lines" ]];then
+        head+="\n"
+    fi
+    lines=$head$lines
+    for line in ${lines}; do
+        echo -e "$line"
     done
 }
 #----------------------------------------Command calls & output---------------------------------------------
@@ -500,27 +524,23 @@ merge(){
 case $COMMAND in
 'infected') infected ;;
 'gender') gender ;;
-'age')age ;;
-'daily') daily;;
-'monthly') monthly;;
-'yearly') yearly;;
-'countries') countries;;
-'districts') districts;;
-'regions') regions;;
-'merge') merge;;
-*)  if [[ -z "$COMMAND" ]];then
-        echo $head
-        for line in $lines;do
-            echo -e $line
-        done                    
-    else
-        create_error "Command doesn't exist! Try -h to see avaliable commands"
-    fi
+'age') age ;;
+'daily') daily ;;
+'monthly') monthly ;;
+'yearly') yearly ;;
+'countries') countries ;;
+'districts') districts ;;
+'regions') regions ;;
+*) if [[ -z "$COMMAND" || "$COMMAND" == 'merge' ]]; then
+    merge
+else
+    create_error "Command doesn't exist! Try -h to see avaliable commands"
+fi ;;
 esac
 
 # prints invalid lines
-if [[ "${#FILTERS}" -gt 0 || "$COMMAND" != "merge" ]];then
-    if [ -n "$err_lines" ];then
+if [[ "${#FILTERS}" -gt 0 || "$COMMAND" != "merge" ]]; then
+    if [ -n "$err_lines" ]; then
         echo -e "$err_lines"
     fi
 fi
