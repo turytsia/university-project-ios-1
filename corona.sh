@@ -172,11 +172,11 @@ if [ ! -p /dev/stdin ]; then
     if [[ ${#files} -gt 0 ]]; then
         for file in ${files[*]}; do
             if [[ "$file" =~ \.csv$ ]]; then
-                lines+=$(cat $file | input)" "
+                lines+="$(cat $file | input)" 
             elif [[ "$file" =~ \.csv\.gz$ ]]; then
-                lines+=$(zcat $file | input)" "
+                lines+="$(zcat $file | input)" 
             elif [[ "$file" =~ \.csv\.bz2$ ]]; then
-                lines+=$(bzcat $file | input)" "
+                lines+="$(bzcat $file | input)" 
             fi
         done
     else
@@ -186,18 +186,18 @@ if [ ! -p /dev/stdin ]; then
             create_error "Invalid name of the file"
         else
             if [[ "$file" =~ \.csv$ ]]; then
-                lines+=$(cat $file | input)
+                lines+="$(cat $file | input)"
             elif [[ "$file" =~ \.csv\.gz$ ]]; then
-                lines+=$(zcat $file | input)
+                lines+="$(zcat $file | input)"
             elif [[ "$file" =~ \.csv\.bz2$ ]]; then
-                lines+=$(bzcat $file | input)
+                lines+="$(bzcat $file | input)"
             fi
         fi
     fi
     IFS=""
 else
 
-    lines+=$(input)
+    lines+="$(input)"
 fi
 
 # if there is no command
@@ -427,7 +427,7 @@ age() {
     }
 
     if [[ -z "$is_histogram" ]]; then
-        echo -e "$lines" |age_count
+        echo -e "$lines" | age_count
     else
         max=$(echo -e "$lines" | age_count | find_max)
         echo -e "$lines" | age_count | s_filter $max $s_age
