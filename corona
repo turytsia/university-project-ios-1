@@ -168,11 +168,13 @@ if [ ! -p /dev/stdin ]; then
             files+=($file)
         fi
     done
-    IFS="\n"
     if [[ ${#files} -gt 0 ]]; then
         for file in ${files[*]}; do
+            if [[ -n "$lines" ]];then
+                lines+="\n"
+            fi
             if [[ "$file" =~ \.csv$ ]]; then
-                lines+="$(cat $file | input)" 
+                lines+="$(cat "$file" | input)" 
             elif [[ "$file" =~ \.csv\.gz$ ]]; then
                 lines+="$(zcat $file | input)" 
             elif [[ "$file" =~ \.csv\.bz2$ ]]; then
@@ -194,7 +196,6 @@ if [ ! -p /dev/stdin ]; then
             fi
         fi
     fi
-    IFS=""
 else
 
     lines+="$(input)"
@@ -206,7 +207,6 @@ for file in ${files[*]};do
         COMMAND=
     fi
 done
-
 #---------------------------------------------Functions--------------------------------------------------
 # finds max value in "key": "value" line
 find_max() {
@@ -234,7 +234,11 @@ get_line() {
         age=$3
         gsub(" ", "", date)
         gsub(" ", "", age)
-        line=$1","$2","$3","$4","$5","$6","$7","$8","$9
+        line=$0
+
+        if(length(line)<=0){
+            next
+        }
 
         y=substr(date,0,4)
         m=substr(date,6,2)
@@ -246,7 +250,7 @@ get_line() {
         max_day=31
         min_year=1970
 
-        is_date_invalid=date !~ valid_date || d < 0 || m < 0|| m > max_month || y < min_year || y > max_year || d > months[int(m-1)]
+        is_date_invalid=(date !~ valid_date || d < 0 || m < 0|| m > max_month || y < min_year || y > max_year || d > months[int(m-1)])&&length(date)>0
         is_age_invalid=(age<0||age !~ /^[0-9]+$/)&&length(age)>0
         
         if(isError=="invalid"){
@@ -291,7 +295,7 @@ b_filter() {
 }
 
 g_filter() {
-    echo -e "$lines" | awk -F, -v valid_date="re_date" -v GENDER="$1" '{if( $4 == GENDER || length($4) == 0 ) {print} }'
+    echo -e "$lines" | awk -F, -v valid_date="re_date" -v GENDER="$1" '{if( $4 == GENDER) {print} }'
 }
 
 s_filter() {
