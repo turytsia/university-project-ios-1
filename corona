@@ -287,11 +287,11 @@ if [[ "${#FILTERS[*]}" -gt 0 || ("$COMMAND" != "merge" && "$COMMAND" != "") ]]; 
 fi
 
 a_filter() {
-    echo -e "$lines" | awk -F, -v valid_date="re_date" -v DATE="$1" '{ if(DATE<=$2||length($2)==0){print $0} }'
+    echo -e "$lines" | awk -F, -v valid_date="re_date" -v DATE="$1" '{ if(DATE<=$2){print $0} }'
 }
 
 b_filter() {
-    echo -e "$lines" | awk -F, -v valid_date="re_date" -v DATE="$1" '{ if(DATE>=$2||length($2)==0){print} }'
+    echo -e "$lines" | awk -F, -v valid_date="re_date" -v DATE="$1" '{ if(DATE>=$2){print} }'
 }
 
 g_filter() {
